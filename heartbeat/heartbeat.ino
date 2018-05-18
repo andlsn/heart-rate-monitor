@@ -6,6 +6,8 @@
 #define MIN_MAX_SIZE 3
 #define IBIS_SIZE 10
 
+#define NOISE_THRESHOLD 15
+
 int Signal;
 
 unsigned long pause = 2000;
@@ -27,6 +29,8 @@ int i = 0;
 
 int IBI = 0;
 int BPM = 0;
+
+int noise = 0;
 
 void setup() {
   resetMinMaxValues();
@@ -88,8 +92,13 @@ void detectHeartBeat() {
     } else {
       digitalWrite(LED_BUILTIN, LOW);
     }
+    noise = 0;
   } else {
-    detected = false;
+    if (noise > NOISE_THRESHOLD) {
+      detected = false;
+      noise = 0;
+    }
+    noise++;
     digitalWrite(LED_BUILTIN, LOW);
   }
 }
