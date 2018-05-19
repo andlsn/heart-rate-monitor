@@ -2,6 +2,8 @@
 
 #define MAX 2000
 #define MIN -1
+#define SHORT_PAUSE 2000
+#define LONG_PAUSE 20000
 
 #define MIN_MAX_SIZE 3
 #define IBIS_SIZE 10
@@ -10,7 +12,7 @@
 
 int Signal;
 
-unsigned long pause = 2000;
+unsigned long pause = SHORT_PAUSE;
 
 int minValues[MIN_MAX_SIZE];
 int maxValues[MIN_MAX_SIZE];
@@ -72,6 +74,8 @@ void setNewThreshold() {
       BPM = 0;
       printSensorError(meanMin, meanMax);
     }
+
+    pause = BPM > 0 ? LONG_PAUSE : SHORT_PAUSE;
 
     resetMinMaxValues();
   }
