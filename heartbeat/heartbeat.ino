@@ -119,6 +119,8 @@ bool getIBI() {
 
     if (accept) {
       printIBI(IBI);
+    } else {
+      printDiscardedIBI(IBI);
     }
   }
 

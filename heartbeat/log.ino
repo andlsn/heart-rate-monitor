@@ -30,6 +30,11 @@ void printIBI(int IBI) {
   Serial.println(IBI);
 }
 
+void printDiscardedIBI(int IBI) {
+  Serial.print("DISCARD IBI: ");
+  Serial.println(IBI);
+}
+
 void printBPM(int BPM) {
   Serial.print("BPM: ");
   Serial.println(BPM);
