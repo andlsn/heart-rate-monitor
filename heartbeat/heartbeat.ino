@@ -43,6 +43,7 @@ void setup() {
 
 void loop() {
   Signal = analogRead(PIN);
+  printSignal();
 
   setMinMaxValues();
   setNewThreshold();
