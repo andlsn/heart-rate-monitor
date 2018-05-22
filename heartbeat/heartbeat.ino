@@ -7,6 +7,7 @@
 
 #define MIN_MAX_SIZE 3
 #define IBIS_SIZE 10
+#define IBI_THRESHOLD 3000
 
 #define NOISE_THRESHOLD 15
 
@@ -72,6 +73,7 @@ void setNewThreshold() {
       goodValues = 0; //reset IBIs
       i = 0; //reset IBIs
       goodThreshold = false;
+      previousIBI = 0;
       BPM = 0;
       printSensorError(meanMin, meanMax);
     }
@@ -116,7 +118,7 @@ bool getIBI() {
   if (previousIBI > 0) {
     IBI = lastIBI - previousIBI;
 
-    accept = IBI <= 1500;
+    accept = IBI <= IBI_THRESHOLD;
 
     if (accept) {
       printIBI(IBI);
