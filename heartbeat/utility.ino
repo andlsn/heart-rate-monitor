@@ -1,4 +1,4 @@
-void setMinMaxValues() {
+void setMinMax() {
   for (int j = 0; j < MIN_MAX_SIZE; j++) {
     if (Signal > maxValues[j]) {
       maxValues[j] = Signal;
@@ -14,14 +14,14 @@ void setMinMaxValues() {
   }
 }
 
-void resetMinMaxValues() {
+void resetMinMax() {
   for (int j = 0; j < MIN_MAX_SIZE; j++) {
     minValues[j] = MAX;
     maxValues[j] = MIN;
   }
 }
 
-int meanMinMaxValues(int a[], int discard) {
+int meanMinMax(int a[], int discard) {
   int sum = 0;
   int len = 0;
   for (int j = 0; j < MIN_MAX_SIZE; j++) {

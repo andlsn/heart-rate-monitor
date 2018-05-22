@@ -36,7 +36,7 @@ int BPM = 0;
 int noise = 0;
 
 void setup() {
-  resetMinMaxValues();
+  resetMinMax();
 
   pinMode(LED_BUILTIN, OUTPUT);
   Serial.begin(9600);
@@ -46,7 +46,7 @@ void loop() {
   Signal = analogRead(PIN);
   printSignal();
 
-  setMinMaxValues();
+  setMinMax();
   setNewThreshold();
 
   if (goodThreshold) {
@@ -60,8 +60,8 @@ void setNewThreshold() {
   if (millis() - lastTime >= pause) {
     lastTime = millis();
 
-    int meanMin = meanMinMaxValues(minValues, MAX);
-    int meanMax = meanMinMaxValues(maxValues, MIN);
+    int meanMin = meanMinMax(minValues, MAX);
+    int meanMax = meanMinMax(maxValues, MIN);
 
     if (meanMin + 30 < meanMax && meanMin >= 300) {
       goodThreshold = true;
@@ -80,7 +80,7 @@ void setNewThreshold() {
 
     pause = BPM > 0 ? LONG_PAUSE : SHORT_PAUSE;
 
-    resetMinMaxValues();
+    resetMinMax();
   }
 }
 
