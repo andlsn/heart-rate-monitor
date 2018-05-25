@@ -1,3 +1,29 @@
+#include <SPI.h>
+#include <SPBTLE_RF.h>
+#include <sensor_service.h>
+
+#define PIN_BLE_SPI_MOSI   (11)
+#define PIN_BLE_SPI_MISO   (12)
+#define PIN_BLE_SPI_SCK    (3)
+
+#define PIN_BLE_SPI_nCS    (A1)
+#define PIN_BLE_SPI_RESET  (7)
+#define PIN_BLE_SPI_IRQ    (A0)
+
+#define PIN_BLE_LED    (0xFF)
+
+#define SerialPort Serial
+
+// Configure BTLE_SPI
+SPIClass BTLE_SPI(PIN_BLE_SPI_MOSI, PIN_BLE_SPI_MISO, PIN_BLE_SPI_SCK);
+
+// Configure BTLE pins
+SPBTLERFClass BTLE(&BTLE_SPI, PIN_BLE_SPI_nCS, PIN_BLE_SPI_IRQ, PIN_BLE_SPI_RESET, PIN_BLE_LED);
+
+const char *name = "BlueNRG";
+uint8_t SERVER_BDADDR[] = {0x12, 0x34, 0x00, 0xE1, 0x80, 0x03};
+//end bluetooth
+
 #define PIN 2
 
 #define MAX 2000
@@ -26,8 +52,8 @@ bool goodThreshold = false;
 bool detected = false;
 
 int IBIs[IBIS_SIZE];
-unsigned long previousIBI = 0;
-unsigned long lastIBI = 0;
+unsigned long previousTimeIBI = 0;
+unsigned long lastTimeIBI = 0;
 int i = 0;
 
 int IBI = 0;
@@ -35,7 +61,35 @@ int BPM = 0;
 
 int noise = 0;
 
+int previousIBI = 0;
+int editIBI = 1;
+
 void setup() {
+  int ret;
+
+  Serial.begin(9600);
+
+  if (BTLE.begin() == SPBTLERF_ERROR) {
+    Serial.println("Bluetooth module configuration error!");
+    while (1);
+  }
+
+  if (SensorService.begin(name, SERVER_BDADDR)) {
+    Serial.println("Sensor service configuration error!");
+    while (1);
+  }
+
+  ret = SensorService.Add_Environmental_Sensor_Service();
+
+  if (ret == BLE_STATUS_SUCCESS)
+    Serial.println("Environmental Sensor service added successfully.");
+  else
+    Serial.println("Error while adding Environmental Sensor service.");
+
+  if (SensorService.isConnected() == FALSE) {
+    SensorService.setConnectable();
+  }
+
   resetMinMax();
 
   pinMode(LED_BUILTIN, OUTPUT);
@@ -43,6 +97,8 @@ void setup() {
 }
 
 void loop() {
+  BTLE.update();
+
   Signal = analogRead(PIN);
   printSignal();
 
@@ -60,6 +116,10 @@ void setNewThreshold() {
   if (millis() - lastTime >= pause) {
     lastTime = millis();
 
+    if (SensorService.isConnected() == FALSE) {
+      SensorService.setConnectable();
+    }
+
     int meanMin = meanMinMax(minValues, MAX);
     int meanMax = meanMinMax(maxValues, MIN);
 
@@ -73,7 +133,7 @@ void setNewThreshold() {
       goodValues = 0; //reset IBIs
       i = 0; //reset IBIs
       goodThreshold = false;
-      previousIBI = 0;
+      previousTimeIBI = 0;
       BPM = 0;
       printSensorError(meanMin, meanMax);
     }
@@ -111,23 +171,34 @@ void detectHeartBeat() {
 }
 
 bool getIBI() {
-  lastIBI = millis();
+  lastTimeIBI = millis();
 
   bool accept = false;
 
-  if (previousIBI > 0) {
-    IBI = lastIBI - previousIBI;
+  if (previousTimeIBI > 0) {
+    previousIBI = IBI;
+    IBI = lastTimeIBI - previousTimeIBI;
+
+    if (IBI == previousIBI) {
+      IBI += editIBI;
+      editIBI *= -1;
+    }
 
     accept = IBI <= IBI_THRESHOLD;
 
     if (accept) {
       printIBI(IBI);
+
+      if (SensorService.isConnected() == TRUE) {
+        SensorService.Humidity_Update(IBI);
+      }
+
     } else {
       printDiscardedIBI(IBI);
     }
   }
 
-  previousIBI = lastIBI;
+  previousTimeIBI = lastTimeIBI;
 
   return accept;
 }
