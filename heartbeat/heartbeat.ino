@@ -1,6 +1,6 @@
 #include <SPI.h>
 #include <SPBTLE_RF.h>
-#include <sensor_service.h>
+#include "sensor_service.h"
 
 #define PIN_BLE_SPI_MOSI   (11)
 #define PIN_BLE_SPI_MISO   (12)
@@ -22,6 +22,8 @@ SPBTLERFClass BTLE(&BTLE_SPI, PIN_BLE_SPI_nCS, PIN_BLE_SPI_IRQ, PIN_BLE_SPI_RESE
 
 const char *name = "BlueNRG";
 uint8_t SERVER_BDADDR[] = {0x12, 0x34, 0x00, 0xE1, 0x80, 0x03};
+
+Heartbeat heartbeat_data;
 //end bluetooth
 
 #define PIN 2
@@ -61,34 +63,12 @@ int BPM = 0;
 
 int noise = 0;
 
-int previousIBI = 0;
-int editIBI = 1;
-
 void setup() {
   int ret;
 
   Serial.begin(9600);
 
-  if (BTLE.begin() == SPBTLERF_ERROR) {
-    Serial.println("Bluetooth module configuration error!");
-    while (1);
-  }
-
-  if (SensorService.begin(name, SERVER_BDADDR)) {
-    Serial.println("Sensor service configuration error!");
-    while (1);
-  }
-
-  ret = SensorService.Add_Environmental_Sensor_Service();
-
-  if (ret == BLE_STATUS_SUCCESS)
-    Serial.println("Environmental Sensor service added successfully.");
-  else
-    Serial.println("Error while adding Environmental Sensor service.");
-
-  if (SensorService.isConnected() == FALSE) {
-    SensorService.setConnectable();
-  }
+  startHeartbeatService();
 
   resetMinMax();
 
@@ -110,6 +90,25 @@ void loop() {
   }
 
   delay(20);
+}
+
+void startHeartbeatService() {
+  if (BTLE.begin() == SPBTLERF_ERROR) {
+    SerialPort.println("Bluetooth module configuration error!");
+    while (1);
+  }
+
+  if (SensorService.begin(name, SERVER_BDADDR)) {
+    SerialPort.println("Sensor service configuration error!");
+    while (1);
+  }
+
+  int ret = SensorService.Add_Heartbeat_Service();
+
+  if (ret == BLE_STATUS_SUCCESS)
+    SerialPort.println("Heart service added successfully.");
+  else
+    SerialPort.println("Error while adding Heartbeat service.");
 }
 
 void setNewThreshold() {
@@ -154,6 +153,7 @@ void detectHeartBeat() {
       if (getIBI()) {
         digitalWrite(LED_BUILTIN, HIGH);
         getBPM(IBI);
+        sendToBluetooth();
       }
 
     } else {
@@ -176,23 +176,12 @@ bool getIBI() {
   bool accept = false;
 
   if (previousTimeIBI > 0) {
-    previousIBI = IBI;
     IBI = lastTimeIBI - previousTimeIBI;
-
-    if (IBI == previousIBI) {
-      IBI += editIBI;
-      editIBI *= -1;
-    }
 
     accept = IBI <= IBI_THRESHOLD;
 
     if (accept) {
       printIBI(IBI);
-
-      if (SensorService.isConnected() == TRUE) {
-        SensorService.Humidity_Update(IBI);
-      }
-
     } else {
       printDiscardedIBI(IBI);
     }
@@ -214,5 +203,13 @@ void getBPM(int IBI) {
   if (goodValues >= IBIS_SIZE) {
     BPM = 60000 / meanIBI();
     printBPM(BPM);
+  }
+}
+
+void sendToBluetooth() {
+  if (SensorService.isConnected() == TRUE) {
+    heartbeat_data.IBI = IBI;
+    heartbeat_data.BPM = BPM;
+    SensorService.Heartbeat_Notify(&heartbeat_data);
   }
 }
