@@ -33,8 +33,14 @@ int meanMinMax(int a[], int discard) {
   return sum / len;
 }
 
-int meanIBI() {
+int meanLast10Beats() {
   int sum = 0;
-  for (int j = 0; j < IBIS_SIZE; j++) sum += IBIs[j];
-  return sum / IBIS_SIZE;
+  for (int j = 0; j < 10; j++) sum += IBI10[j];
+  return sum / 10;
+}
+
+int meanLast3Beats() {
+  int sum = 0;
+  for (int j = 0; j < 3; j++) sum += IBI3[j];
+  return sum / 3;
 }

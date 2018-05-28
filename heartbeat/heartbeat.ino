@@ -12,8 +12,6 @@
 
 #define PIN_BLE_LED    (0xFF)
 
-#define SerialPort Serial
-
 // Configure BTLE_SPI
 SPIClass BTLE_SPI(PIN_BLE_SPI_MOSI, PIN_BLE_SPI_MISO, PIN_BLE_SPI_SCK);
 
@@ -31,10 +29,9 @@ Heartbeat heartbeat_data;
 #define MAX 2000
 #define MIN -1
 #define SHORT_PAUSE 2000
-#define LONG_PAUSE 20000
+#define LONG_PAUSE 10000
 
 #define MIN_MAX_SIZE 3
-#define IBIS_SIZE 10
 #define IBI_THRESHOLD 3000
 
 #define NOISE_THRESHOLD 15
@@ -53,19 +50,25 @@ bool goodThreshold = false;
 
 bool detected = false;
 
-int IBIs[IBIS_SIZE];
 unsigned long previousTimeIBI = 0;
 unsigned long lastTimeIBI = 0;
+
+int IBI10[10];
 int i = 0;
 
-int IBI = 0;
-int BPM = 0;
+int IBI3[3];
+int j = 0;
+
+short ERR = 0;
+short meanOfLast3 = 0;
+short lastIBI = 0;
+short secondToLastIBI = 0;
+short thirdToLastIBI = 0;
+short meanOfLast10 = 0;
 
 int noise = 0;
 
 void setup() {
-  int ret;
-
   Serial.begin(9600);
 
   startHeartbeatService();
@@ -73,7 +76,6 @@ void setup() {
   resetMinMax();
 
   pinMode(LED_BUILTIN, OUTPUT);
-  Serial.begin(9600);
 }
 
 void loop() {
@@ -94,21 +96,21 @@ void loop() {
 
 void startHeartbeatService() {
   if (BTLE.begin() == SPBTLERF_ERROR) {
-    SerialPort.println("Bluetooth module configuration error!");
+    Serial.println("Bluetooth module configuration error!");
     while (1);
   }
 
   if (SensorService.begin(name, SERVER_BDADDR)) {
-    SerialPort.println("Sensor service configuration error!");
+    Serial.println("Sensor service configuration error!");
     while (1);
   }
 
   int ret = SensorService.Add_Heartbeat_Service();
 
   if (ret == BLE_STATUS_SUCCESS)
-    SerialPort.println("Heart service added successfully.");
+    Serial.println("Heart service added successfully.");
   else
-    SerialPort.println("Error while adding Heartbeat service.");
+    Serial.println("Error while adding Heartbeat service.");
 }
 
 void setNewThreshold() {
@@ -122,22 +124,31 @@ void setNewThreshold() {
     int meanMin = meanMinMax(minValues, MAX);
     int meanMax = meanMinMax(maxValues, MIN);
 
-    if (meanMin + 30 < meanMax && meanMin >= 300) {
+    if (meanMin + 40 < meanMax && meanMin >= 300) {
       goodThreshold = true;
-      threshold = meanMax - 25;
+      threshold = meanMax - 35;
 
       printThreshold(threshold, meanMin, meanMax);
 
     } else {
-      goodValues = 0; //reset IBIs
-      i = 0; //reset IBIs
+      goodValues = 0; //reset arrays of IBI
+      i = 0; //reset IBI10
+      j = 0; //reset IBI3
       goodThreshold = false;
       previousTimeIBI = 0;
-      BPM = 0;
+      
+      meanOfLast3 = 0;
+      lastIBI = 0;
+      secondToLastIBI = 0;
+      thirdToLastIBI = 0;
+      meanOfLast10 = 0;
+
+      ERR = 1;
       printSensorError(meanMin, meanMax);
+      sendToBluetooth();
     }
 
-    pause = BPM > 0 ? LONG_PAUSE : SHORT_PAUSE;
+    //pause = meanOfLast10 > 0 ? LONG_PAUSE : SHORT_PAUSE;
 
     resetMinMax();
   }
@@ -152,7 +163,8 @@ void detectHeartBeat() {
 
       if (getIBI()) {
         digitalWrite(LED_BUILTIN, HIGH);
-        getBPM(IBI);
+        getMeans(lastIBI);
+        ERR = 0;
         sendToBluetooth();
       }
 
@@ -176,14 +188,16 @@ bool getIBI() {
   bool accept = false;
 
   if (previousTimeIBI > 0) {
-    IBI = lastTimeIBI - previousTimeIBI;
+    thirdToLastIBI = secondToLastIBI;
+    secondToLastIBI = lastIBI;
+    lastIBI = lastTimeIBI - previousTimeIBI;
 
-    accept = IBI <= IBI_THRESHOLD;
+    accept = lastIBI <= IBI_THRESHOLD;
 
     if (accept) {
-      printIBI(IBI);
+      printIBIs(lastIBI, secondToLastIBI, thirdToLastIBI);
     } else {
-      printDiscardedIBI(IBI);
+      printDiscardedIBI(lastIBI);
     }
   }
 
@@ -192,24 +206,38 @@ bool getIBI() {
   return accept;
 }
 
-void getBPM(int IBI) {
+void getMeans(short lastIBI) {
   goodValues++;
 
-  IBIs[i] = IBI;
-  i = i == (IBIS_SIZE - 1) ? 0 : (i + 1);
+  IBI3[j] = lastIBI;
+  j = j == (3 - 1) ? 0 : (j + 1);
+
+  IBI10[i] = lastIBI;
+  i = i == (10 - 1) ? 0 : (i + 1);
 
   printIBIs();
 
-  if (goodValues >= IBIS_SIZE) {
-    BPM = 60000 / meanIBI();
-    printBPM(BPM);
+  if (goodValues >= 3) {
+    meanOfLast3 = 60000 / meanLast3Beats();
+    printMeanOfLast3(meanOfLast3);
+    
+    if (goodValues >= 10) {
+      meanOfLast10 = 60000 / meanLast10Beats();
+      printMeanOfLast10(meanOfLast10);
+    }
   }
 }
 
 void sendToBluetooth() {
   if (SensorService.isConnected() == TRUE) {
-    heartbeat_data.IBI = IBI;
-    heartbeat_data.BPM = BPM;
+    
+    heartbeat_data.ERR = ERR;
+    heartbeat_data.meanOfLast3 = meanOfLast3;
+    heartbeat_data.lastIBI = lastIBI;
+    heartbeat_data.secondToLastIBI = secondToLastIBI;
+    heartbeat_data.thirdToLastIBI = thirdToLastIBI;
+    heartbeat_data.meanOfLast10 = meanOfLast10;
+
     SensorService.Heartbeat_Notify(&heartbeat_data);
   }
 }

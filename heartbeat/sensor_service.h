@@ -85,11 +85,15 @@
 typedef int i32_t;
 
 /**
- * @brief Structure containing acceleration value (in mg) of each axis.
+ * @brief Heartbeat structure
  */
 typedef struct {
-  i32_t IBI;
-  i32_t BPM;
+  i32_t ERR;
+  i32_t meanOfLast3;
+  i32_t lastIBI;
+  i32_t secondToLastIBI;
+  i32_t thirdToLastIBI;
+  i32_t meanOfLast10;
 } Heartbeat;
 /**
  * @}

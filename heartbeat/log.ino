@@ -26,7 +26,7 @@ void printThreshold(int threshold, int meanMin, int meanMax) {
 void printSensorError(int meanMin, int meanMax) {
   if (!log(INFO)) return;
 
-  Serial.print("The sensor is not properly placed - (");
+  Serial.print("Sensor error - (");
   Serial.print(meanMin);
   Serial.print("/");
   Serial.print(meanMax);
@@ -43,37 +43,57 @@ void printHeartBeat() {
   n++;
 }
 
-void printIBI(int IBI) {
+void printIBIs(short lastIBI, short secondToLastIBI, short thirdToLastIBI) {
   if (!log(OFF)) return;
 
   Serial.println("❤️ !!Heartbeat detected!! ❤️");
-  Serial.print("IBI: ");
-  Serial.println(IBI);
+  Serial.print("1: ");
+  Serial.print(lastIBI);
+  Serial.print(" - 2: ");
+  Serial.print(secondToLastIBI);
+  Serial.print(" - 3: ");
+  Serial.println(thirdToLastIBI);
 }
 
-void printDiscardedIBI(int IBI) {
+void printDiscardedIBI(short IBI) {
   if (!log(DEBUG)) return;
 
   Serial.print("DISCARD IBI: ");
   Serial.println(IBI);
 }
 
-void printBPM(int BPM) {
+void printMeanOfLast3(short meanOfLast3) {
   if (!log(OFF)) return;
 
-  Serial.print("BPM: ");
-  Serial.println(BPM);
+  Serial.print("Mean of last three heartbeats: ");
+  Serial.println(meanOfLast10);
+}
+
+void printMeanOfLast10(short meanOfLast10) {
+  if (!log(OFF)) return;
+
+  Serial.print("Mean of last ten heartbeats: ");
+  Serial.println(meanOfLast10);
 }
 
 void printIBIs() {
   if (!log(DEBUG)) return;
 
   Serial.print(" -> [");
-  for (int j = 0; j < IBIS_SIZE - 1; j++) {
-    Serial.print(IBIs[j]);
+  for (int j = 0; j < 10 - 1; j++) {
+    Serial.print(IBI10[j]);
     Serial.print(", ");
   }
-  Serial.print(IBIs[IBIS_SIZE - 1]);
+  Serial.print(IBI10[10 - 1]);
+  Serial.print("]");
+  Serial.println();
+
+  Serial.print(" -> [");
+  for (int j = 0; j < 3 - 1; j++) {
+    Serial.print(IBI3[j]);
+    Serial.print(", ");
+  }
+  Serial.print(IBI3[3 - 1]);
   Serial.print("]");
   Serial.println();
 }
