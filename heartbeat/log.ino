@@ -66,7 +66,7 @@ void printMeanOfLast3(short meanOfLast3) {
   if (!log(OFF)) return;
 
   Serial.print("Mean of last three heartbeats: ");
-  Serial.println(meanOfLast10);
+  Serial.println(meanOfLast3);
 }
 
 void printMeanOfLast10(short meanOfLast10) {

@@ -12,6 +12,8 @@
 
 #define PIN_BLE_LED    (0xFF)
 
+#define RETRY 5000
+
 // Configure BTLE_SPI
 SPIClass BTLE_SPI(PIN_BLE_SPI_MOSI, PIN_BLE_SPI_MISO, PIN_BLE_SPI_SCK);
 
@@ -29,7 +31,7 @@ Heartbeat heartbeat_data;
 #define MAX 2000
 #define MIN -1
 #define SHORT_PAUSE 2000
-#define LONG_PAUSE 10000
+#define LONG_PAUSE 300000//5 minutes
 
 #define MIN_MAX_SIZE 3
 #define IBI_THRESHOLD 3000
@@ -43,12 +45,14 @@ unsigned long pause = SHORT_PAUSE;
 int minValues[MIN_MAX_SIZE];
 int maxValues[MIN_MAX_SIZE];
 
-unsigned long lastTime = 0;
+unsigned long lastTimeThreshold = 0;
 int threshold = 0;
 int goodValues = 0;
 bool goodThreshold = false;
 
 bool detected = false;
+
+unsigned long now = 0;
 
 unsigned long previousTimeIBI = 0;
 unsigned long lastTimeIBI = 0;
@@ -95,27 +99,45 @@ void loop() {
 }
 
 void startHeartbeatService() {
-  if (BTLE.begin() == SPBTLERF_ERROR) {
-    Serial.println("Bluetooth module configuration error!");
-    while (1);
-  }
+  bool initialized = false;
+  do {
+    if (BTLE.begin() == SPBTLERF_ERROR) {
+      Serial.println("Bluetooth module configuration error!");
+      delay(RETRY);
+    } else {
+      Serial.println("Bluetooth module configuration completed!");
+      initialized = true;
+    }
+  } while (!initialized);
 
-  if (SensorService.begin(name, SERVER_BDADDR)) {
-    Serial.println("Sensor service configuration error!");
-    while (1);
-  }
+  initialized = false;
+  do {
+    if (SensorService.begin(name, SERVER_BDADDR)) {
+      Serial.println("Sensor service configuration error!");
+      delay(RETRY);
+    } else {
+      Serial.println("Sensor service configuration completed!");
+      initialized = true;
+    }
+  } while (!initialized);
 
-  int ret = SensorService.Add_Heartbeat_Service();
-
-  if (ret == BLE_STATUS_SUCCESS)
-    Serial.println("Heart service added successfully.");
-  else
-    Serial.println("Error while adding Heartbeat service.");
+  initialized = false;
+  do {
+    if (SensorService.Add_Heartbeat_Service() != BLE_STATUS_SUCCESS) {
+      Serial.println("Error while adding Heartbeat service.");
+      delay(RETRY);
+    } else {
+      Serial.println("Heart service added successfully.");
+      initialized = true;
+    }
+  } while (!initialized);
 }
 
 void setNewThreshold() {
-  if (millis() - lastTime >= pause) {
-    lastTime = millis();
+  now = millis();
+
+  if (now - lastTimeThreshold >= pause || (lastIBI > 0 && now - lastTimeIBI >= IBI_THRESHOLD)) {
+    lastTimeThreshold = now;
 
     if (SensorService.isConnected() == FALSE) {
       SensorService.setConnectable();
@@ -136,19 +158,20 @@ void setNewThreshold() {
       j = 0; //reset IBI3
       goodThreshold = false;
       previousTimeIBI = 0;
-      
+
+      ERR = 1;
+
       meanOfLast3 = 0;
       lastIBI = 0;
       secondToLastIBI = 0;
       thirdToLastIBI = 0;
       meanOfLast10 = 0;
 
-      ERR = 1;
+      pause = SHORT_PAUSE;
+
       printSensorError(meanMin, meanMax);
       sendToBluetooth();
     }
-
-    //pause = meanOfLast10 > 0 ? LONG_PAUSE : SHORT_PAUSE;
 
     resetMinMax();
   }
@@ -220,8 +243,9 @@ void getMeans(short lastIBI) {
   if (goodValues >= 3) {
     meanOfLast3 = 60000 / meanLast3Beats();
     printMeanOfLast3(meanOfLast3);
-    
+
     if (goodValues >= 10) {
+      pause = LONG_PAUSE;
       meanOfLast10 = 60000 / meanLast10Beats();
       printMeanOfLast10(meanOfLast10);
     }
@@ -230,7 +254,7 @@ void getMeans(short lastIBI) {
 
 void sendToBluetooth() {
   if (SensorService.isConnected() == TRUE) {
-    
+
     heartbeat_data.ERR = ERR;
     heartbeat_data.meanOfLast3 = meanOfLast3;
     heartbeat_data.lastIBI = lastIBI;
